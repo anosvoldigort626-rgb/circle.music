@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Editor Pro</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/browser-id3-writer@4.4.0/dist/browser-id3-writer.min.js"></script>
+    
+    <style>
+        :root {
+            --ios-accent: #007AFF;
+            --glass: rgba(255, 255, 255, 0.7);
+            --border: rgba(255, 255, 255, 0.4);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+        }
+
+        body {
+            /* Красивый градиент в стиле Apple */
+            background: radial-gradient(circle at top left, #e2e2e2, #ffffff),
+                        linear-gradient(160deg, #a2c2e1 0%, #ffcbd1 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .iphone-card {
+            background: var(--glass);
+            backdrop-filter: blur(40px) saturate(200%);
+            -webkit-backdrop-filter: blur(40px) saturate(200%);
+            border: 1px solid var(--border);
+            border-radius: 40px;
+            width: 100%;
+            max-width: 400px;
+            padding: 25px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #1d1d1f;
+        }
+
+        /* Зона загрузки */
+        .upload-box {
+            background: rgba(255, 255, 255, 0.4);
+            border: 2px dashed rgba(0, 122, 255, 0.2);
+            border-radius: 20px;
+            padding: 30px 15px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .upload-box:hover {
+            background: rgba(255, 255, 255, 0.6);
+            border-color: var(--ios-accent);
+        }
+
+        /* Обложка альбома */
+        .cover-wrapper {
+            position: relative;
+            width: 180px;
+            height: 180px;
+            margin: 0 auto 25px;
+            display: none;
+        }
+
+        #coverPreview {
+            width: 100%;
+            height: 100%;
+            border-radius: 25px;
+            object-fit: cover;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            background: #eee;
+        }
+
+        .edit-badge {
+            position: absolute;
+            bottom: -5px;
+            right: -5px;
+            background: var(--ios-accent);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            border: 3px solid white;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        /* Поля ввода */
+        .form-group {
+            display: none;
+            text-align: left;
+        }
+
+        .ios-input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(0,0,0,0.05);
+            border-radius: 14px;
+            padding: 12px 15px;
+            font-size: 16px;
+            margin-bottom: 12px;
+            outline: none;
+            transition: background 0.2s;
+        }
+
+        .ios-input:focus {
+            background: #fff;
+        }
+
+        label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #86868b;
+            margin-left: 10px;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        /* Кнопка */
+        .save-btn {
+            background: var(--ios-accent);
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 16px;
+            border-radius: 18px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 10px;
+        }
+
+        .save-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .save-btn:active {
+            transform: scale(0.96);
+        }
+
+        #fileInput, #artInput { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="iphone-card">
+    <h1>Music Editor</h1>
+
+    <input type="file" id="fileInput" accept="audio/mpeg">
+    <input type="file" id="artInput" accept="image/*">
+
+    <div class="upload-box" onclick="document.getElementById('fileInput').click()">
+        <p id="fileName">Нажмите, чтобы выбрать песню</p>
+    </div>
+
+    <div class="cover-wrapper" id="coverContainer">
+        <img id="coverPreview" src="" alt="Обложка">
+        <div class="edit-badge" onclick="document.getElementById('artInput').click()">✎</div>
+    </div>
+
+    <div class="form-group" id="formGroup">
+        <label>Название</label>
+        <input type="text" id="title" class="ios-input" placeholder="Track Name">
+        
+        <label>Артист</label>
+        <input type="text" id="artist" class="ios-input" placeholder="Artist">
+        
+        <label>Альбом</label>
+        <input type="text" id="album" class="ios-input" placeholder="Album">
+
+        <button class="save-btn" id="saveBtn">Сохранить файл</button>
+    </div>
+</div>
+
+<script>
+    let currentAudioBuffer = null;
+    let currentArtBuffer = null;
+    let originalName = "music.mp3";
+
+    const fileInput = document.getElementById('fileInput');
+    const artInput = document.getElementById('artInput');
+    const saveBtn = document.getElementById('saveBtn');
+
+    // Функция для перевода файла в ArrayBuffer
+    const readFileAsBuffer = (file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsArrayBuffer(file);
+        });
+    };
+
+    // 1. Загрузка MP3
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        originalName = file.name;
+        document.getElementById('fileName').innerText = file.name;
+        saveBtn.disabled = true;
+
+        try {
+            // Читаем сам файл
+            currentAudioBuffer = await readFileAsBuffer(file);
+
+            // Читаем теги для предпросмотра
+            jsmediatags.read(file, {
+                onSuccess: (tag) => {
+                    const t = tag.tags;
+                    document.getElementById('title').value = t.title || "";
+                    document.getElementById('artist').value = t.artist || "";
+                    document.getElementById('album').value = t.album || "";
+
+                    if (t.picture) {
+                        const { data, format } = t.picture;
+                        let base64String = "";
+                        for (let i = 0; i < data.length; i++) base64String += String.fromCharCode(data[i]);
+                        document.getElementById('coverPreview').src = `data:${format};base64,${window.btoa(base64String)}`;
+                        
+                        // Сохраняем текущую картинку в буфер на случай, если пользователь её не меняет
+                        const uint8Array = new Uint8Array(data);
+                        currentArtBuffer = uint8Array.buffer;
+                    }
+                    
+                    document.getElementById('coverContainer').style.display = 'block';
+                    document.getElementById('formGroup').style.display = 'block';
+                    saveBtn.disabled = false;
+                },
+                onError: (err) => {
+                    console.error("Ошибка чтения тегов:", err);
+                    document.getElementById('formGroup').style.display = 'block';
+                    saveBtn.disabled = false;
+                }
+            });
+        } catch (err) {
+            alert("Не удалось прочитать файл");
+        }
+    });
+
+    // 2. Смена обложки
+    artInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+            currentArtBuffer = await readFileAsBuffer(file);
+            const blob = new Blob([currentArtBuffer], { type: file.type });
+            document.getElementById('coverPreview').src = URL.createObjectURL(blob);
+        } catch (err) {
+            alert("Ошибка при загрузке картинки");
+        }
+    });
+
+    // 3. Сохранение
+    saveBtn.addEventListener('click', () => {
+        if (!currentAudioBuffer) return;
+
+        saveBtn.innerText = "Обработка...";
+        saveBtn.disabled = true;
+
+        try {
+            // Инициализируем Writer
+            const writer = new ID3Writer(currentAudioBuffer);
+            
+            // Устанавливаем текстовые теги
+            writer.setFrame('TIT2', document.getElementById('title').value)
+                  .setFrame('TPE1', [document.getElementById('artist').value])
+                  .setFrame('TALB', document.getElementById('album').value);
+
+            // Добавляем обложку, если она есть
+            if (currentArtBuffer) {
+                writer.setFrame('APIC', {
+                    type: 3,
+                    data: currentArtBuffer,
+                    description: 'Cover'
+                });
+            }
+
+            writer.addTag();
+
+            // Создаем Blob и скачиваем
+            const resultBlob = writer.getBlob();
+            const url = URL.createObjectURL(resultBlob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = "edited_" + originalName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            setTimeout(() => {
+                URL.revokeObjectURL(url);
+                saveBtn.innerText = "Сохранить файл";
+                saveBtn.disabled = false;
+            }, 1000);
+
+        } catch (error) {
+            console.error(error);
+            alert("Ошибка сохранения: файл слишком большой или поврежден.");
+            saveBtn.disabled = false;
+            saveBtn.innerText = "Сохранить файл";
+        }
+    });
+</script>
+
+</body>
+</html>
